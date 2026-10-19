@@ -1,0 +1,54 @@
+name: Finwell Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  backend-test-build:
+    name: Spring Boot Backend Build & JUnit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run Maven Tests with JUnit 5 & Mockito
+        working-directory: ./backend-spring-boot
+        run: mvn clean test -B
+
+      - name: Package Backend Jar
+        working-directory: ./backend-spring-boot
+        run: mvn package -DskipTests -B
+
+  frontend-test-build:
+    name: React Frontend Build & Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: TypeScript Type Check
+        run: npm run lint
+
+      - name: Vite Production Build
+        run: npm run build

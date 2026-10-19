@@ -1,0 +1,114 @@
+name: Finwell CI & Quality Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ===============================================================
+  # 1. Spring Boot 3 Backend Pipeline: Build, JUnit 5 Tests, Quality
+  # ===============================================================
+  backend-pipeline:
+    name: Backend · Spring Boot & Maven (Build, Test & Quality)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./backend-spring-boot
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Eclipse Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Verify Flyway Migrations & DDL Syntax
+        run: |
+          echo "Verifying Flyway migration files..."
+          ls -la src/main/resources/db/migration/
+          test -f src/main/resources/db/migration/V1__init_schema.sql
+          test -f src/main/resources/db/migration/V2__seed_demo_data.sql
+
+      - name: Run Maven Tests (JUnit 5 & Mockito)
+        run: mvn clean test -B
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-test-reports
+          path: backend-spring-boot/target/surefire-reports/
+          retention-days: 14
+
+      - name: Package Production Executable JAR
+        run: mvn package -DskipTests=false -B
+
+      - name: Upload Backend Executable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: finwell-backend-jar
+          path: backend-spring-boot/target/*.jar
+          retention-days: 7
+
+  # ===============================================================
+  # 2. React Frontend Pipeline: Lint, TypeScript Check, Vite Build
+  # ===============================================================
+  frontend-pipeline:
+    name: Frontend · React 19 & TypeScript (Quality & Build)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Check Code Quality & TypeScript Types
+        run: npm run lint
+
+      - name: Build Vite Production Assets
+        run: npm run build
+
+      - name: Upload Frontend Production Dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: finwell-frontend-dist
+          path: dist/
+          retention-days: 7
+
+  # ===============================================================
+  # 3. Infrastructure & Container Verification
+  # ===============================================================
+  docker-validation:
+    name: Infrastructure · Docker Compose Verification
+    needs: [backend-pipeline, frontend-pipeline]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Validate Docker Compose Configuration
+        run: |
+          echo "Validating docker-compose.yml specification..."
+          docker compose config --quiet
+          echo "Docker Compose config is valid and verified."

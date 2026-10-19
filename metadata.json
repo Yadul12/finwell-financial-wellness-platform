@@ -1,0 +1,6 @@
+{
+  "name": "Finwell — Employee Financial Wellness Platform",
+  "description": "Enterprise employee financial wellness platform featuring paycheck analysis, expense tracking, budget management, savings goals, and holistic wellness scoring.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
